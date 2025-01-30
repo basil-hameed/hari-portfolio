@@ -3,26 +3,395 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Demazon - Simplified E-commerce</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Demazon - Modern E-commerce Demo</title>
+    <!-- Styles -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://js.stripe.com/v3/"></script>
+    <style>
+        :root {
+            --primary: #ff5a5f;
+            --secondary: #484848;
+            --light: #f7f7f7;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system;
+            background-color: var(--light);
+        }
+
+        .navbar {
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .hero-section {
+            background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), 
+                        url('https://source.unsplash.com/random/1920x600?shopping') center/cover;
+            height: 400px;
+            color: white;
+        }
+
+        .product-card {
+            transition: transform 0.3s, box-shadow 0.3s;
+            border: none;
+            overflow: hidden;
+        }
+
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+
+        .product-badge {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: var(--primary);
+            color: white;
+        }
+
+        .cart-item-image {
+            width: 80px;
+            height: 80px;
+            object-fit: contain;
+        }
+
+        .quantity-input {
+            width: 60px;
+            text-align: center;
+        }
+
+        .checkout-steps .step {
+            flex: 1;
+            text-align: center;
+            padding: 1rem;
+            border-bottom: 3px solid #dee2e6;
+        }
+
+        .checkout-steps .step.active {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+    </style>
 </head>
 <body>
-    <header>
-        <h1>Demazon</h1>
-        <p>Your one-stop shop for everything!</p>
-    </header>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white">
+        <div class="container">
+            <a class="navbar-brand fw-bold text-primary" href="#">DEMAZON</a>
+            <div class="d-flex align-items-center">
+                <div class="input-group mx-3" style="max-width: 500px;">
+                    <input type="text" class="form-control" placeholder="Search products...">
+                    <button class="btn btn-primary"><i class="fas fa-search"></i></button>
+                </div>
+                <div class="ms-3">
+                    <button class="btn btn-outline-secondary position-relative" id="wishlistButton">
+                        <i class="fas fa-heart"></i>
+                        <span class="position-absolute top-0 start-100 translate-middle badge bg-primary" id="wishlistCount">0</span>
+                    </button>
+                    <button class="btn btn-outline-secondary position-relative ms-2" id="cartButton">
+                        <i class="fas fa-shopping-cart"></i>
+                        <span class="position-absolute top-0 start-100 translate-middle badge bg-primary" id="cartCount">0</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
 
-    <main>
-        <section id="products">
-            <h2>Products</h2>
-            <div id="product-list" class="product-grid"></div>
-        </section>
-    </main>
+    <!-- Hero Section -->
+    <div class="hero-section d-flex align-items-center justify-content-center">
+        <div class="text-center">
+            <h1 class="display-4 fw-bold mb-3">Summer Sale Collection</h1>
+            <button class="btn btn-primary btn-lg">Shop Now</button>
+        </div>
+    </div>
 
-    <footer>
-        <p>&copy; 2023 Demazon. All rights reserved.</p>
+    <!-- Product Filters -->
+    <div class="container my-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h4 class="mb-0">Featured Products</h4>
+            <select class="form-select w-25">
+                <option>Sort by: Featured</option>
+                <option>Price: Low to High</option>
+                <option>Price: High to Low</option>
+                <option>Rating</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Product Grid -->
+    <div class="container my-5">
+        <div class="row g-4" id="productList"></div>
+    </div>
+
+    <!-- Cart Modal -->
+    <div class="modal fade" id="cartModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Shopping Cart</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Product</th>
+                                    <th>Price</th>
+                                    <th>Quantity</th>
+                                    <th>Total</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="cartItems"></tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex justify-content-end">
+                        <h4>Total: $<span id="cartTotal">0</span></h4>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Continue Shopping</button>
+                    <button class="btn btn-primary" id="checkoutButton">Proceed to Checkout</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Checkout Modal -->
+    <div class="modal fade" id="checkoutModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Checkout</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="checkout-steps d-flex mb-4">
+                        <div class="step active">Shipping</div>
+                        <div class="step">Payment</div>
+                        <div class="step">Review</div>
+                    </div>
+                    
+                    <form id="checkoutForm">
+                        <!-- Shipping Form -->
+                        <div class="checkout-step active">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">First Name</label>
+                                    <input type="text" class="form-control" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">Last Name</label>
+                                    <input type="text" class="form-control" required>
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Address</label>
+                                    <input type="text" class="form-control" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">City</label>
+                                    <input type="text" class="form-control" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">State</label>
+                                    <select class="form-select" required>
+                                        <option value="">Choose...</option>
+                                        <!-- Add states -->
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Zip</label>
+                                    <input type="text" class="form-control" required>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary">Next Step</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-dark text-white mt-5 py-5">
+        <div class="container">
+            <div class="row g-4">
+                <div class="col-md-3">
+                    <h5>DEMAZON</h5>
+                    <p class="text-muted">Your premier online shopping destination</p>
+                </div>
+                <div class="col-md-3">
+                    <h6>Customer Service</h6>
+                    <ul class="list-unstyled">
+                        <li><a href="#" class="text-decoration-none text-muted">Contact Us</a></li>
+                        <li><a href="#" class="text-decoration-none text-muted">FAQ</a></li>
+                        <li><a href="#" class="text-decoration-none text-muted">Returns</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-3">
+                    <h6>Company</h6>
+                    <ul class="list-unstyled">
+                        <li><a href="#" class="text-decoration-none text-muted">About Us</a></li>
+                        <li><a href="#" class="text-decoration-none text-muted">Careers</a></li>
+                        <li><a href="#" class="text-decoration-none text-muted">Blog</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-3">
+                    <h6>Connect</h6>
+                    <div class="d-flex gap-3">
+                        <a href="#" class="text-muted"><i class="fab fa-facebook"></i></a>
+                        <a href="#" class="text-muted"><i class="fab fa-twitter"></i></a>
+                        <a href="#" class="text-muted"><i class="fab fa-instagram"></i></a>
+                    </div>
+                </div>
+            </div>
+        </div>
     </footer>
 
-    <script src="script.js"></script>
+    <script>
+        // Enhanced E-commerce Logic
+        const API_URL = 'https://dummyjson.com/products';
+        let cart = JSON.parse(localStorage.getItem('cart')) || [];
+        let wishlist = JSON.parse(localStorage.getItem('wishlist')) || [];
+
+        // Initialize Stripe
+        const stripe = Stripe('pk_test_51PJhCjRvlRwJq9j7C9rZ3Q0Z2Z4YwY7vQ2XqZ3XqZ3XqZ3XqZ3');
+
+        // Product Functions
+        async function loadProducts() {
+            try {
+                const response = await fetch(API_URL);
+                const data = await response.json();
+                displayProducts(data.products);
+            } catch (error) {
+                console.error('Error loading products:', error);
+            }
+        }
+
+        function displayProducts(products) {
+            const container = document.getElementById('productList');
+            container.innerHTML = products.map(product => `
+                <div class="col-md-4 col-lg-3">
+                    <div class="card product-card h-100">
+                        <div class="position-relative">
+                            <img src="${product.thumbnail}" class="card-img-top" style="height: 200px; object-fit: cover;">
+                            ${product.discountPercentage ? 
+                                `<span class="product-badge badge rounded-pill">-${Math.round(product.discountPercentage)}%</span>` : ''}
+                            <button class="btn btn-link position-absolute top-0 end-0 text-danger" 
+                                onclick="toggleWishlist(${product.id})">
+                                <i class="fas ${wishlist.some(p => p.id === product.id) ? 'fa-heart' : 'fa-heart-o'}"></i>
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <h6 class="card-title">${product.title}</h6>
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span class="text-primary fw-bold">$${product.price}</span>
+                                    <del class="text-muted small ms-2">$${(product.price * 1.2).toFixed(2)}</del>
+                                </div>
+                                <div class="text-warning small">
+                                    ${'★'.repeat(Math.round(product.rating))}${'☆'.repeat(5 - Math.round(product.rating))}
+                                </div>
+                            </div>
+                            <button class="btn btn-primary w-100 mt-2" 
+                                onclick="addToCart(${product.id})">
+                                <i class="fas fa-cart-plus me-2"></i>Add to Cart
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Cart Functions
+        function updateCart() {
+            localStorage.setItem('cart', JSON.stringify(cart));
+            document.getElementById('cartCount').textContent = cart.reduce((sum, item) => sum + item.quantity, 0);
+            
+            // Update cart items
+            const cartItems = document.getElementById('cartItems');
+            cartItems.innerHTML = cart.map(item => `
+                <tr>
+                    <td>
+                        <div class="d-flex align-items-center">
+                            <img src="${item.thumbnail}" class="cart-item-image me-3">
+                            <div>${item.title}</div>
+                        </div>
+                    </td>
+                    <td>$${item.price}</td>
+                    <td>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-secondary" 
+                                onclick="updateQuantity(${item.id}, ${item.quantity - 1})">−</button>
+                            <input type="number" class="form-control quantity-input" 
+                                value="${item.quantity}" min="1" 
+                                onchange="updateQuantity(${item.id}, parseInt(this.value))">
+                            <button class="btn btn-sm btn-outline-secondary" 
+                                onclick="updateQuantity(${item.id}, ${item.quantity + 1})">+</button>
+                        </div>
+                    </td>
+                    <td>$${(item.price * item.quantity).toFixed(2)}</td>
+                    <td>
+                        <button class="btn btn-danger btn-sm" 
+                            onclick="removeFromCart(${item.id})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+            
+            document.getElementById('cartTotal').textContent = 
+                cart.reduce((sum, item) => sum + (item.price * item.quantity), 0).toFixed(2);
+        }
+
+        function updateQuantity(productId, newQuantity) {
+            const item = cart.find(item => item.id === productId);
+            if (item) {
+                if (newQuantity < 1) {
+                    removeFromCart(productId);
+                } else {
+                    item.quantity = newQuantity;
+                    updateCart();
+                }
+            }
+        }
+
+        // Checkout and Payment Logic remains similar to previous version
+        // (Add the Stripe checkout logic from previous example here)
+
+        // Wishlist Functions
+        function toggleWishlist(productId) {
+            const product = cart.find(p => p.id === productId);
+            if (wishlist.some(p => p.id === productId)) {
+                wishlist = wishlist.filter(p => p.id !== productId);
+            } else if (product) {
+                wishlist.push(product);
+            }
+            localStorage.setItem('wishlist', JSON.stringify(wishlist));
+            loadProducts();
+            document.getElementById('wishlistCount').textContent = wishlist.length;
+        }
+
+        // Initialize
+        document.getElementById('cartButton').addEventListener('click', () => {
+            new bootstrap.Modal(document.getElementById('cartModal')).show();
+        });
+
+        document.getElementById('checkoutButton').addEventListener('click', () => {
+            new bootstrap.Modal(document.getElementById('checkoutModal')).show();
+        });
+
+        loadProducts();
+        updateCart();
+        document.getElementById('wishlistCount').textContent = wishlist.length;
+    </script>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
